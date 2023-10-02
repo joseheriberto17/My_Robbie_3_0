@@ -91,8 +91,8 @@ void Error_Handler(void);
 #define SD_CS_GPIO_Port GPIOC
 #define BUZZ_Pin GPIO_PIN_7
 #define BUZZ_GPIO_Port GPIOC
-#define USR_LED_Pin GPIO_PIN_8
-#define USR_LED_GPIO_Port GPIOC
+#define STATUS_LED_RED_Pin GPIO_PIN_8
+#define STATUS_LED_RED_GPIO_Port GPIOC
 #define ACC_INT1_Pin GPIO_PIN_9
 #define ACC_INT1_GPIO_Port GPIOC
 #define C1_1_Pin GPIO_PIN_8
@@ -103,12 +103,8 @@ void Error_Handler(void);
 #define CE_RF_GPIO_Port GPIOA
 #define CS_RF_Pin GPIO_PIN_12
 #define CS_RF_GPIO_Port GPIOA
-#define C1_2_Pin GPIO_PIN_15
-#define C1_2_GPIO_Port GPIOA
 #define AMOT2_Pin GPIO_PIN_2
 #define AMOT2_GPIO_Port GPIOD
-#define C2_2_Pin GPIO_PIN_3
-#define C2_2_GPIO_Port GPIOB
 #define AMOT1_Pin GPIO_PIN_4
 #define AMOT1_GPIO_Port GPIOB
 #define BMOT1_Pin GPIO_PIN_5
@@ -119,7 +115,7 @@ void Error_Handler(void);
 #define STATUS_LED_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
-
+void printWelcomeMessage(UART_HandleTypeDef *huart);
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
