@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "string.h"
 #include "stdio.h"
+#include <ctype.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,6 +55,7 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
+TIM_HandleTypeDef htim5;
 TIM_HandleTypeDef htim8;
 
 UART_HandleTypeDef huart1;
@@ -64,7 +66,23 @@ DMA_HandleTypeDef hdma_usart3_tx;
 
 /* USER CODE BEGIN PV */
 char MSG_Rx[30];
-char MSG_Tx[30];
+char MSG_Tx[80];
+
+//encoders
+int32_t cnt1_1 =0;
+int32_t cnt1_2 =0;
+uint8_t dir = 0;
+
+//PWM
+int16_t Duty = 0;
+
+char letra;
+int numero;
+char P_letra =' ';
+int P_numero;
+
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -83,6 +101,7 @@ static void MX_TIM3_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_TIM8_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -134,6 +153,7 @@ int main(void)
   MX_I2C2_Init();
   MX_TIM8_Init();
   MX_TIM4_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -142,14 +162,24 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
   HAL_GPIO_WritePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin, GPIO_PIN_SET);
+
+  // motor de izquierda
   HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_RESET);
+  // motor de derecha
   HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_RESET);
 
   HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_2);
 
+  // un solo encoder
+  HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
+  cnt1_1 = __HAL_TIM_GET_COUNTER(&htim1);
+
+  // tiempo base de 10 Hz
+  HAL_TIM_Base_Start_IT(&htim5);
+
   printWelcomeMessage(&huart3);
-  HAL_UART_Receive_DMA(&huart3, (uint8_t*)&MSG_Rx,3);
+  HAL_UART_Receive_DMA(&huart3, (uint8_t*)&MSG_Rx,5);
   while (1)
   {
 
@@ -488,13 +518,13 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
+  htim1.Init.Prescaler = 3;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 65535;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  sConfig.EncoderMode = TIM_ENCODERMODE_TI1;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
   sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
@@ -538,12 +568,12 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
+  htim2.Init.Prescaler = 1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 4294967295;
+  htim2.Init.Period = 65535;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  sConfig.EncoderMode = TIM_ENCODERMODE_TI1;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
   sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
@@ -677,6 +707,51 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 2 */
   HAL_TIM_MspPostInit(&htim4);
+
+}
+
+/**
+  * @brief TIM5 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM5_Init(void)
+{
+
+  /* USER CODE BEGIN TIM5_Init 0 */
+
+  /* USER CODE END TIM5_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM5_Init 1 */
+
+  /* USER CODE END TIM5_Init 1 */
+  htim5.Instance = TIM5;
+  htim5.Init.Prescaler = 1599;
+  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim5.Init.Period = 999;
+  htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM5_Init 2 */
+
+  /* USER CODE END TIM5_Init 2 */
 
 }
 
@@ -946,18 +1021,44 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
-	uint16_t Duty = atoi(MSG_Rx);
-	HAL_GPIO_TogglePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin);
+	// devuelvo los 5 caractereres recibidos de DMA incluso el "\0" que se al por la tecla intro
+//	sprintf(MSG_Tx,"\r\n%s",MSG_Rx);
+//	HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
+	if (sscanf(MSG_Rx, "%c%d", &letra, &numero) == 2) {
+		// determinar si es una letra w o s
+		if (isalpha(letra) && (letra == 'w' || letra == 's')) {
+			// min: 0 and Max value period of timer 3
+			if (Duty >= 0 && Duty <=__HAL_TIM_GET_AUTORELOAD(&htim3) ) {
+				// confirma que si entro al modificar la vel y dir del motor
+				HAL_GPIO_TogglePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin);
 
-	//devolucion de valor de duty
-	sprintf(MSG_Tx,"\r\n%d",(int) Duty);
-	HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
+				P_letra = letra;
+				P_numero = numero;
+				Duty = (int16_t) P_numero;
 
-	if (Duty >= 0 && Duty <=__HAL_TIM_GET_AUTORELOAD(&htim3) ) {
-		__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,Duty);
-		__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,Duty);
+				if(letra =='w'){
+					//dir motor de izquierda
+					HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_RESET);
+					//dir motor de derecha
+					HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_RESET);
+					//dir motor izquierdo
+					__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,Duty);
+					//dir motor derecho
+	//				__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,Duty);
+				} else {
+					//dir motor de izquierda
+					HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_SET);
+					//dir motor de derecha
+					HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_RESET);
+
+					//dir motor izquierdo
+					__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty);
+					//dir motor derecho
+	//				__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty);
+				}
+			}
+		}
 	}
-
 }
 void printWelcomeMessage(UART_HandleTypeDef *huart) {
 	char *strings[] = {"\033[0;0H",
@@ -968,6 +1069,45 @@ void printWelcomeMessage(UART_HandleTypeDef *huart) {
 
 	for (uint8_t i = 0; i < 5; i++) {
 		HAL_UART_Transmit(huart, (uint8_t*)strings[i], strlen(strings[i]),1000);
+	}
+}
+float Convert_Pulse_To_Rpm(int32_t counter, int32_t sample_time){
+	int PPR = 7; // pulso por vuelta de rotor
+	int RR = 100; // relacion rotor y eje del motor
+
+	float value = (((((float)counter/sample_time)*1000)/PPR)*60)/RR;
+	return value;
+}
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	if (htim->Instance == TIM5){
+		int32_t diff = 0;
+		float speed_1 = 0.000;
+		int valor = 0;
+
+		cnt1_2 = __HAL_TIM_GET_COUNTER(&htim1);
+		//estimacion de la velocidad de los pulso/segundos
+		if (abs(cnt1_2 -cnt1_1) > 200) {
+			if (cnt1_1 > cnt1_2) {
+				valor =1;
+			} else {
+				valor =-1;
+			}
+		} else {
+			valor =0;
+		}
+
+		diff =valor*(__HAL_TIM_GET_AUTORELOAD(&htim1)+1) + cnt1_2 - cnt1_1;
+
+		// convertir a RPM
+		speed_1 = Convert_Pulse_To_Rpm(diff, 100);
+
+		// mensaje de respuesta a 100
+//		sprintf(MSG_Tx,"\r\nspeed:%.3f,Duty:%d,cnt1:%d,diff:%d,letra:%c", speed_1,(int)Duty/10,(int)cnt1_1,(int)diff,P_letra);
+		sprintf(MSG_Tx,"\r\nspeed:%.3f,letra:%c,Duty:%d%%", speed_1,P_letra,(int)Duty/10);
+
+		HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
+
+		cnt1_1 = __HAL_TIM_GET_COUNTER(&htim1);
 	}
 }
 /* USER CODE END 4 */

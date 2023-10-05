@@ -116,6 +116,7 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 void printWelcomeMessage(UART_HandleTypeDef *huart);
+float Convert_Pulse_To_Rpm(int32_t counter, int32_t sample_time);
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

@@ -64,8 +64,8 @@ all: main-build
 main-build: My_Robbie_3_0.elf secondary-outputs
 
 # Tool invocations
-My_Robbie_3_0.elf My_Robbie_3_0.map: $(OBJS) $(USER_OBJS) /home/joseheriberto24/STM32CubeIDE/My_Robbie/My_Robbie_3_0/STM32F405RGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "My_Robbie_3_0.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"/home/joseheriberto24/STM32CubeIDE/My_Robbie/My_Robbie_3_0/STM32F405RGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="My_Robbie_3_0.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+My_Robbie_3_0.elf My_Robbie_3_0.map: $(OBJS) $(USER_OBJS) C:\Users\jose.marquez45\STM32CubeIDE\workspace_1.13.0\My_Robbie_3_0\STM32F405RGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "My_Robbie_3_0.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\jose.marquez45\STM32CubeIDE\workspace_1.13.0\My_Robbie_3_0\STM32F405RGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="My_Robbie_3_0.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -u _scanf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
