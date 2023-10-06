@@ -71,15 +71,42 @@ char MSG_Tx[80];
 //encoders
 int32_t cnt1_1 =0;
 int32_t cnt1_2 =0;
-uint8_t dir = 0;
+int32_t cnt2_1 =0;
+int32_t cnt2_2 =0;
 
 //PWM
-int16_t Duty = 0;
+int16_t Duty_1 = 0;
+int16_t Duty_2 = 0;
 
 char letra;
 int numero;
 char P_letra =' ';
-int P_numero;
+float P_numero;
+
+//constantes PID
+float q0=0.7;
+float q1=-0.7;
+float q2=0;
+
+float setP = 0.000;
+//control motor 1
+float uk1 = 0.000;
+float uk1_1 = 0.000;
+float uk1_2 = 0.000;
+
+float ek1 = 0.000;
+float ek1_1 = 0.000;
+float ek1_2 = 0.000;
+
+//control motor 1
+float uk2 = 0.000;
+float uk2_1 = 0.000;
+float uk2_2 = 0.000;
+
+float ek2 = 0.000;
+float ek2_1 = 0.000;
+float ek2_2 = 0.000;
+
 
 
 
@@ -161,6 +188,9 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
+  //tiempo para que la rueda no swicheada a tierra pare
+  HAL_Delay(1500);
+
   HAL_GPIO_WritePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin, GPIO_PIN_SET);
 
   // motor de izquierda
@@ -171,9 +201,12 @@ int main(void)
   HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_2);
 
-  // un solo encoder
+  // un encoders
   HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
+  HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
+
   cnt1_1 = __HAL_TIM_GET_COUNTER(&htim1);
+  cnt2_1 = __HAL_TIM_GET_COUNTER(&htim2);
 
   // tiempo base de 10 Hz
   HAL_TIM_Base_Start_IT(&htim5);
@@ -1028,33 +1061,34 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 		// determinar si es una letra w o s
 		if (isalpha(letra) && (letra == 'w' || letra == 's')) {
 			// min: 0 and Max value period of timer 3
-			if (Duty >= 0 && Duty <=__HAL_TIM_GET_AUTORELOAD(&htim3) ) {
+			if (Duty_1 >= 0 && Duty_1 <=__HAL_TIM_GET_AUTORELOAD(&htim3) ) {
 				// confirma que si entro al modificar la vel y dir del motor
 				HAL_GPIO_TogglePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin);
 
 				P_letra = letra;
-				P_numero = numero;
-				Duty = (int16_t) P_numero;
+				P_numero = (float) numero;
 
 				if(letra =='w'){
+					setP = P_numero;
 					//dir motor de izquierda
-					HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_RESET);
+//					HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_RESET);
 					//dir motor de derecha
-					HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_RESET);
+//					HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_RESET);
 					//dir motor izquierdo
-					__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,Duty);
+//					__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,Duty);
 					//dir motor derecho
-	//				__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,Duty);
+		//			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,Duty);
 				} else {
-					//dir motor de izquierda
-					HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_SET);
+					setP = -P_numero;
+//					//dir motor de izquierda
+//					HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_SET);
 					//dir motor de derecha
-					HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_RESET);
+//					HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_RESET);
 
 					//dir motor izquierdo
-					__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty);
+//					__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty);
 					//dir motor derecho
-	//				__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty);
+		//			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty);
 				}
 			}
 		}
@@ -1080,34 +1114,121 @@ float Convert_Pulse_To_Rpm(int32_t counter, int32_t sample_time){
 }
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	if (htim->Instance == TIM5){
-		int32_t diff = 0;
+		int32_t diff_1 = 0;
+		int32_t diff_2 = 0;
 		float speed_1 = 0.000;
-		int valor = 0;
+		float speed_2 = 0.000;
+		int valor_1 = 0;
+		int valor_2 = 0;
 
 		cnt1_2 = __HAL_TIM_GET_COUNTER(&htim1);
-		//estimacion de la velocidad de los pulso/segundos
+		cnt2_2 = __HAL_TIM_GET_COUNTER(&htim2);
+
+		//estimacion de la velocidad motor izquierdo
 		if (abs(cnt1_2 -cnt1_1) > 200) {
 			if (cnt1_1 > cnt1_2) {
-				valor =1;
+				valor_1 =1;
 			} else {
-				valor =-1;
+				valor_1 =-1;
 			}
 		} else {
-			valor =0;
+			valor_1 =0;
+		}
+		//estimacion de la velocidad motor derecho
+		if (abs(cnt2_2 -cnt2_1) > 200) {
+			if (cnt2_1 > cnt2_2) {
+				valor_2 =1;
+			} else {
+				valor_2 =-1;
+			}
+		} else {
+			valor_2 =0;
 		}
 
-		diff =valor*(__HAL_TIM_GET_AUTORELOAD(&htim1)+1) + cnt1_2 - cnt1_1;
+
+		diff_1 =valor_1*(__HAL_TIM_GET_AUTORELOAD(&htim1)+1) + cnt1_2 - cnt1_1;
+		diff_2 =valor_2*(__HAL_TIM_GET_AUTORELOAD(&htim2)+1) + cnt2_2 - cnt2_1;
 
 		// convertir a RPM
-		speed_1 = Convert_Pulse_To_Rpm(diff, 100);
+		speed_1 = 100.000*(Convert_Pulse_To_Rpm(diff_1, 100)/114.000);
+		speed_2 = 100.000*(Convert_Pulse_To_Rpm(diff_2, 100)/114.000);
 
-		// mensaje de respuesta a 100
+		//control motor 1
+		ek1 = setP-speed_1;
+		ek2 = -setP-speed_2;
+
+		//accion de control
+		uk1 =q0*ek1 + q1*ek1_1 + q2*ek1_2 + uk1_1;
+		uk2 =q0*ek2 + q1*ek2_1 + q2*ek2_2 + uk2_1;
+
+		//limitador de accion de control
+		if (uk1>=100.0){
+			uk1=100.0;
+		}
+		if (uk1<=-100.0){
+			uk1=-100.0;
+		}
+
+		if (uk2>=100.0){
+			uk2=100.0;
+		}
+		if (uk2<=-100.0){
+			uk2=-100.0;
+		}
+
+
+		Duty_1 = abs(uk1*(999/100.0));
+		if(uk1>=0){
+			//dir motor de izquierda
+			HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_RESET);
+			//dir motor izquierdo
+			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,Duty_1);
+
+		} else {
+			//dir motor de izquierda
+			HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_SET);
+			//dir motor izquierdo
+			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty_1);
+
+		}
+
+		Duty_2 = abs(uk2*(999/100.0));
+		if(uk2<=0){
+			//dir motor de derecha
+			HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_RESET);
+			//dir motor derecho
+			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,Duty_2);
+		} else {
+			//dir motor de derecha
+			HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_SET);
+			//dir motor derecho
+			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty_2);
+		}
+
+
+		// mensaje de respuesta a 100 ms
 //		sprintf(MSG_Tx,"\r\nspeed:%.3f,Duty:%d,cnt1:%d,diff:%d,letra:%c", speed_1,(int)Duty/10,(int)cnt1_1,(int)diff,P_letra);
-		sprintf(MSG_Tx,"\r\nspeed:%.3f,letra:%c,Duty:%d%%", speed_1,P_letra,(int)Duty/10);
-
+//		sprintf(MSG_Tx,"\r\nspeed:%.3f,letra:%c,Duty:%d%%", speed_1,P_letra,(int)(Duty+1)/10);
+//		sprintf(MSG_Tx,"\r\nspeed:%.3f,letra:%c,setP:%d,ek1:%.3f,Duty:%d,di:%.3f", speed_1,P_letra,(int)setP,(float) ek1,(int) (Duty+1)/10,uk1);
+		sprintf(MSG_Tx,"\r\nspeed_1:%.2f,speed_2:%.2f,setP:%d,uk1:%.2f,uk2:%.2f,letra:%c", speed_1,speed_2,(int)setP,uk1,uk2,P_letra);
 		HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
 
+		//shit register motor 1
+		uk1_2=uk1_1;
+		uk1_1=uk1;
+
+		ek1_2=ek1_1;
+		ek1_1=ek1;
+
+		//shit register motor 2
+		uk2_2=uk2_1;
+		uk2_1=uk2;
+
+		ek2_2=ek2_1;
+		ek2_1=ek2;
+
 		cnt1_1 = __HAL_TIM_GET_COUNTER(&htim1);
+		cnt2_1 = __HAL_TIM_GET_COUNTER(&htim2);
 	}
 }
 /* USER CODE END 4 */
