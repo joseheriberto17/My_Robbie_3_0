@@ -56,6 +56,7 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim5;
+TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim8;
 
 UART_HandleTypeDef huart1;
@@ -65,8 +66,11 @@ DMA_HandleTypeDef hdma_usart3_rx;
 DMA_HandleTypeDef hdma_usart3_tx;
 
 /* USER CODE BEGIN PV */
+
+// datos uart
 char MSG_Rx[30];
 char MSG_Tx[80];
+uint32_t counter_time = 0;
 
 //encoders
 int32_t cnt1_1 =0;
@@ -78,17 +82,27 @@ int32_t cnt2_2 =0;
 int16_t Duty_1 = 0;
 int16_t Duty_2 = 0;
 
+//base tiempo
+uint16_t time_1;
+uint16_t time_2;
+
+// tiempo de muestreo estimado (ms)
+uint8_t sample_time = 100;
+
 char letra;
 int numero;
 char P_letra =' ';
 float P_numero;
 
 //constantes PID
-float q0=0.7;
-float q1=-0.7;
+float q0=1.107;
+float q1=-0.47;
 float q2=0;
 
-float setP = 0.000;
+float setP_1 = 0.000;
+float setP_2 = 0.000;
+uint8_t step =0;
+
 //control motor 1
 float uk1 = 0.000;
 float uk1_1 = 0.000;
@@ -129,6 +143,7 @@ static void MX_I2C2_Init(void);
 static void MX_TIM8_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_TIM5_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -181,6 +196,7 @@ int main(void)
   MX_TIM8_Init();
   MX_TIM4_Init();
   MX_TIM5_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -189,7 +205,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
   //tiempo para que la rueda no swicheada a tierra pare
-  HAL_Delay(1500);
+  HAL_Delay(3000);
 
   HAL_GPIO_WritePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin, GPIO_PIN_SET);
 
@@ -210,6 +226,9 @@ int main(void)
 
   // tiempo base de 10 Hz
   HAL_TIM_Base_Start_IT(&htim5);
+  HAL_TIM_Base_Start(&htim6);
+
+
 
   printWelcomeMessage(&huart3);
   HAL_UART_Receive_DMA(&huart3, (uint8_t*)&MSG_Rx,5);
@@ -240,11 +259,15 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.LSIState = RCC_LSI_ON;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLN = 64;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 4;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -254,8 +277,8 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV4;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
@@ -601,7 +624,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 1;
+  htim2.Init.Prescaler = 3;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 65535;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -785,6 +808,44 @@ static void MX_TIM5_Init(void)
   /* USER CODE BEGIN TIM5_Init 2 */
 
   /* USER CODE END TIM5_Init 2 */
+
+}
+
+/**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 24;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 63999;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
 
 }
 
@@ -1059,7 +1120,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 //	HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
 	if (sscanf(MSG_Rx, "%c%d", &letra, &numero) == 2) {
 		// determinar si es una letra w o s
-		if (isalpha(letra) && (letra == 'w' || letra == 's')) {
+		if (isalpha(letra) && (letra == 'w' || letra == 's' || letra == 'a'|| letra == 'd')) {
 			// min: 0 and Max value period of timer 3
 			if (Duty_1 >= 0 && Duty_1 <=__HAL_TIM_GET_AUTORELOAD(&htim3) ) {
 				// confirma que si entro al modificar la vel y dir del motor
@@ -1069,31 +1130,27 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 				P_numero = (float) numero;
 
 				if(letra =='w'){
-					setP = P_numero;
-					//dir motor de izquierda
-//					HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_RESET);
-					//dir motor de derecha
-//					HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_RESET);
-					//dir motor izquierdo
-//					__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,Duty);
-					//dir motor derecho
-		//			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,Duty);
+					setP_1 = P_numero;
+					setP_2 = P_numero;
+				} else if (letra =='s') {
+					setP_1 = -P_numero;
+					setP_2 = -P_numero;
+				} else if (letra =='a') {
+					setP_1 = -P_numero;
+				    setP_2 = P_numero;
 				} else {
-					setP = -P_numero;
-//					//dir motor de izquierda
-//					HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_SET);
-					//dir motor de derecha
-//					HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_RESET);
-
-					//dir motor izquierdo
-//					__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty);
-					//dir motor derecho
-		//			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty);
+					setP_1 = P_numero;
+					setP_2 = -P_numero;
 				}
 			}
 		}
 	}
 }
+//void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart){
+//	time_2 = __HAL_TIM_GET_COUNTER(&htim6);
+//	sprintf(MSG_Tx,"\r\ntime_1:%d,time_2:%d", time_1,time_2);
+//	HAL_UART_Transmit(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx),1000);
+//}
 void printWelcomeMessage(UART_HandleTypeDef *huart) {
 	char *strings[] = {"\033[0;0H",
 			"\033[2J",
@@ -1112,52 +1169,98 @@ float Convert_Pulse_To_Rpm(int32_t counter, int32_t sample_time){
 	float value = (((((float)counter/sample_time)*1000)/PPR)*60)/RR;
 	return value;
 }
+
+int pulse_To_Sample_Time(int32_t cnt_2, int32_t cnt_1) {
+	//estimacion de la velocidad motor izquierdo
+	int valor = 0;
+	if (abs(cnt_2 - cnt_1) > 200) {
+		if (cnt_1 > cnt_2) {
+			valor = 1;
+		} else {
+			valor = -1;
+		}
+	} else {
+		valor = 0;
+	}
+	return valor;
+}
+void secuencia(uint32_t time_counter){
+	if (time_counter%40 == 0){
+		if (step == 0) {
+			setP_1 = 0;
+			setP_2 = 0;
+		} else if(step == 1){
+			setP_1 = 20;
+			setP_2 = 20;
+		} else if(step == 2){
+			setP_1 = 30;
+			setP_2 = 30;
+		} else if(step == 3){
+			setP_1 = 50;
+			setP_2 = 50;
+		} else if(step == 4){
+			setP_1 = 80;
+			setP_2 = 80;
+		} else if(step == 5){
+			setP_1 = 40;
+			setP_2 = 40;
+		} else if(step == 6){
+			setP_1 = 0;
+			setP_2 = 0;
+		}
+
+		step++;
+
+		if (step == 7) {
+			step = 0;
+		}
+	}
+}
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	if (htim->Instance == TIM5){
+
+//		XXXX_1 = datos de motor izquierdo
+//		XXXX_2 = datos de motor derecho
+
+//		time_1 = __HAL_TIM_GET_COUNTER(&htim6);
+		cnt1_2 = __HAL_TIM_GET_COUNTER(&htim1);
+		cnt2_2 = __HAL_TIM_GET_COUNTER(&htim2);
+
 		int32_t diff_1 = 0;
 		int32_t diff_2 = 0;
 		float speed_1 = 0.000;
 		float speed_2 = 0.000;
-		int valor_1 = 0;
-		int valor_2 = 0;
 
-		cnt1_2 = __HAL_TIM_GET_COUNTER(&htim1);
-		cnt2_2 = __HAL_TIM_GET_COUNTER(&htim2);
+		counter_time++;
+		secuencia(counter_time);
+//		setP_1 = 45;
+//		setP_2 = 45;
+
+
 
 		//estimacion de la velocidad motor izquierdo
-		if (abs(cnt1_2 -cnt1_1) > 200) {
-			if (cnt1_1 > cnt1_2) {
-				valor_1 =1;
-			} else {
-				valor_1 =-1;
-			}
-		} else {
-			valor_1 =0;
-		}
+		int valor_1 = pulse_To_Sample_Time(cnt1_2, cnt1_1);
 		//estimacion de la velocidad motor derecho
-		if (abs(cnt2_2 -cnt2_1) > 200) {
-			if (cnt2_1 > cnt2_2) {
-				valor_2 =1;
-			} else {
-				valor_2 =-1;
-			}
-		} else {
-			valor_2 =0;
-		}
+		int valor_2 = pulse_To_Sample_Time(cnt2_2, cnt2_1);
 
 
 		diff_1 =valor_1*(__HAL_TIM_GET_AUTORELOAD(&htim1)+1) + cnt1_2 - cnt1_1;
 		diff_2 =valor_2*(__HAL_TIM_GET_AUTORELOAD(&htim2)+1) + cnt2_2 - cnt2_1;
 
 		// convertir a RPM
-		speed_1 = 100.000*(Convert_Pulse_To_Rpm(diff_1, 100)/114.000);
-		speed_2 = 100.000*(Convert_Pulse_To_Rpm(diff_2, 100)/114.000);
+		speed_1 = 100.000*(Convert_Pulse_To_Rpm(diff_1, sample_time)/114.000);
+		speed_2 = 100.000*(Convert_Pulse_To_Rpm(diff_2, sample_time)/114.000);
 
-		//control motor 1
-		ek1 = setP-speed_1;
-		ek2 = -setP-speed_2;
+//		// velocidad sin controlador
+//		uk1 = setP_1;
+//		uk2 = -setP_2;
 
-		//accion de control
+		//error motores
+		ek1 = setP_1-speed_1;
+		ek2 = -setP_2-speed_2;
+
+//		accion de control
 		uk1 =q0*ek1 + q1*ek1_1 + q2*ek1_2 + uk1_1;
 		uk2 =q0*ek2 + q1*ek2_1 + q2*ek2_2 + uk2_1;
 
@@ -1205,13 +1308,18 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty_2);
 		}
 
-
 		// mensaje de respuesta a 100 ms
+//		if (counter_time == 10) {
+//			counter_time == 0;
 //		sprintf(MSG_Tx,"\r\nspeed:%.3f,Duty:%d,cnt1:%d,diff:%d,letra:%c", speed_1,(int)Duty/10,(int)cnt1_1,(int)diff,P_letra);
 //		sprintf(MSG_Tx,"\r\nspeed:%.3f,letra:%c,Duty:%d%%", speed_1,P_letra,(int)(Duty+1)/10);
-//		sprintf(MSG_Tx,"\r\nspeed:%.3f,letra:%c,setP:%d,ek1:%.3f,Duty:%d,di:%.3f", speed_1,P_letra,(int)setP,(float) ek1,(int) (Duty+1)/10,uk1);
-		sprintf(MSG_Tx,"\r\nspeed_1:%.2f,speed_2:%.2f,setP:%d,uk1:%.2f,uk2:%.2f,letra:%c", speed_1,speed_2,(int)setP,uk1,uk2,P_letra);
+//		sprintf(MSG_Tx,"\r\nspeed:%.3f,letra:%c,setP:%d,ek1:%.3f,Duty:%d,uk1:%.3f", speed_1,P_letra,(int)setP,(float) ek1,(int) (Duty_1+1)/10,uk1);
+//		sprintf(MSG_Tx,"\r\nspeed_1:%.2f,speed_2:%.2f,setP:%d,uk1:%.2f,uk2:%.2f,letra:%c", speed_1,speed_2,(int)setP,uk1,uk2,P_letra);
+		sprintf(MSG_Tx,"\r\nsetP_1:%d,setP_2:%d,speed_1:%.2f,speed_2:%.2f,time:%d",(int)setP_1,(int)setP_2, speed_1,speed_2,(int)counter_time);
+
+//		time_1 = __HAL_TIM_GET_COUNTER(&htim6);
 		HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
+//		}
 
 		//shit register motor 1
 		uk1_2=uk1_1;
@@ -1229,6 +1337,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
 		cnt1_1 = __HAL_TIM_GET_COUNTER(&htim1);
 		cnt2_1 = __HAL_TIM_GET_COUNTER(&htim2);
+//		time_2 = __HAL_TIM_GET_COUNTER(&htim6);
+//		sprintf(MSG_Tx,"\r\ntime_1:%d,time_2:%d", time_1,time_2);
+//		HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
 	}
 }
 /* USER CODE END 4 */
