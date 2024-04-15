@@ -22,9 +22,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "string.h"
-#include "stdio.h"
-#include <ctype.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,6 +43,7 @@
 ADC_HandleTypeDef hadc1;
 
 I2C_HandleTypeDef hi2c2;
+DMA_HandleTypeDef hdma_i2c2_rx;
 
 RTC_HandleTypeDef hrtc;
 
@@ -56,7 +54,6 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim5;
-TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim8;
 
 UART_HandleTypeDef huart1;
@@ -67,62 +64,40 @@ DMA_HandleTypeDef hdma_usart3_tx;
 
 /* USER CODE BEGIN PV */
 
-// datos uart
+// buffer para la obtencion de datos por UART
 char MSG_Rx[30];
-char MSG_Tx[80];
-uint32_t counter_time = 0;
+char MSG_Tx[150];
 
-//encoders
-int32_t cnt1_1 =0;
-int32_t cnt1_2 =0;
-int32_t cnt2_1 =0;
-int32_t cnt2_2 =0;
+char MSG_Rx_1[30];
+char MSG_Tx_1[80];
 
-//PWM
-int16_t Duty_1 = 0;
-int16_t Duty_2 = 0;
+char received_message_uart[14];
 
-//base tiempo
-uint16_t time_1;
-uint16_t time_2;
+uint8_t received_caracter_uart;
+uint8_t flag_uart = 0;
+uint8_t counter_caracter = 0;
 
-// tiempo de muestreo estimado (ms)
-uint8_t sample_time = 100;
-
-char letra;
-int numero;
-char P_letra =' ';
-float P_numero;
-
-//constantes PID
-float q0=1.107;
-float q1=-0.47;
-float q2=0;
-
+// variable principal para la velocidad objetivo de las ruedas
 float setP_1 = 0.000;
 float setP_2 = 0.000;
-uint8_t step =0;
-
-//control motor 1
-float uk1 = 0.000;
-float uk1_1 = 0.000;
-float uk1_2 = 0.000;
-
-float ek1 = 0.000;
-float ek1_1 = 0.000;
-float ek1_2 = 0.000;
-
-//control motor 1
-float uk2 = 0.000;
-float uk2_1 = 0.000;
-float uk2_2 = 0.000;
-
-float ek2 = 0.000;
-float ek2_1 = 0.000;
-float ek2_2 = 0.000;
 
 
 
+// variable para la intrpretacion de la velocidad de las ruedas
+char letra_1;
+int numero_1;
+char letra_2;
+int numero_2;
+char letra_3;
+int numero_3;
+
+char P_letra_1 =' ';
+float P_numero_1;
+char P_letra_2 =' ';
+float P_numero_2;
+
+// variable de prueba de velocidad (no relevante)
+uint8_t step = 0;
 
 /* USER CODE END PV */
 
@@ -143,7 +118,6 @@ static void MX_I2C2_Init(void);
 static void MX_TIM8_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_TIM5_Init(void);
-static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -196,7 +170,6 @@ int main(void)
   MX_TIM8_Init();
   MX_TIM4_Init();
   MX_TIM5_Init();
-  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -205,9 +178,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
   //tiempo para que la rueda no swicheada a tierra pare
-  HAL_Delay(3000);
+  HAL_Delay(6000);
 
-  HAL_GPIO_WritePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin, GPIO_PIN_SET);
+//  HAL_GPIO_WritePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin, GPIO_PIN_SET);
 
   // motor de izquierda
   HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_RESET);
@@ -217,7 +190,7 @@ int main(void)
   HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_2);
 
-  // un encoders
+  // encoders
   HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
   HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
 
@@ -226,12 +199,16 @@ int main(void)
 
   // tiempo base de 10 Hz
   HAL_TIM_Base_Start_IT(&htim5);
-  HAL_TIM_Base_Start(&htim6);
 
 
+  // comunicacion por UART
+//  printWelcomeMessage(&huart3);
+  HAL_UART_Receive_DMA(&huart3, (uint8_t*)&MSG_Rx,14);
 
-  printWelcomeMessage(&huart3);
-  HAL_UART_Receive_DMA(&huart3, (uint8_t*)&MSG_Rx,5);
+  HAL_UART_Receive_IT(&huart1,&received_caracter_uart, 1);
+
+  // comunicacion por i2c
+  HAL_I2C_Slave_Receive_DMA(&hi2c2,&received_length_i2c, 1);
   while (1)
   {
 
@@ -466,7 +443,7 @@ static void MX_I2C2_Init(void)
   hi2c2.Instance = I2C2;
   hi2c2.Init.ClockSpeed = 100000;
   hi2c2.Init.DutyCycle = I2C_DUTYCYCLE_2;
-  hi2c2.Init.OwnAddress1 = 0;
+  hi2c2.Init.OwnAddress1 = 16;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
   hi2c2.Init.OwnAddress2 = 0;
@@ -812,44 +789,6 @@ static void MX_TIM5_Init(void)
 }
 
 /**
-  * @brief TIM6 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM6_Init(void)
-{
-
-  /* USER CODE BEGIN TIM6_Init 0 */
-
-  /* USER CODE END TIM6_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM6_Init 1 */
-
-  /* USER CODE END TIM6_Init 1 */
-  htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 24;
-  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 63999;
-  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM6_Init 2 */
-
-  /* USER CODE END TIM6_Init 2 */
-
-}
-
-/**
   * @brief TIM8 Initialization Function
   * @param None
   * @retval None
@@ -1026,6 +965,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
+  /* DMA1_Stream2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream2_IRQn);
   /* DMA1_Stream3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
@@ -1115,35 +1057,44 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
-	// devuelvo los 5 caractereres recibidos de DMA incluso el "\0" que se al por la tecla intro
-//	sprintf(MSG_Tx,"\r\n%s",MSG_Rx);
-//	HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
-	if (sscanf(MSG_Rx, "%c%d", &letra, &numero) == 2) {
-		// determinar si es una letra w o s
-		if (isalpha(letra) && (letra == 'w' || letra == 's' || letra == 'a'|| letra == 'd')) {
-			// min: 0 and Max value period of timer 3
-			if (Duty_1 >= 0 && Duty_1 <=__HAL_TIM_GET_AUTORELOAD(&htim3) ) {
-				// confirma que si entro al modificar la vel y dir del motor
-				HAL_GPIO_TogglePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin);
 
-				P_letra = letra;
-				P_numero = (float) numero;
 
-				if(letra =='w'){
-					setP_1 = P_numero;
-					setP_2 = P_numero;
-				} else if (letra =='s') {
-					setP_1 = -P_numero;
-					setP_2 = -P_numero;
-				} else if (letra =='a') {
-					setP_1 = -P_numero;
-				    setP_2 = P_numero;
-				} else {
-					setP_1 = P_numero;
-					setP_2 = -P_numero;
-				}
-			}
+	if (huart->Instance == USART3){
+		interpretar_velocidad(MSG_Rx);
+	}
+	if (huart->Instance == USART1){
+
+
+		received_message_uart[counter_caracter]= received_caracter_uart;
+		counter_caracter += 1;
+
+		char *resultado = strstr(received_message_uart, "\n");
+
+		if (resultado != NULL){
+			counter_caracter = 0;
+//			 muestra los datos que recibe del esp 12f
+			sprintf(MSG_Tx_1,"%s",(uint8_t*)received_message_uart);
+			HAL_UART_Transmit_DMA(&huart3, (uint8_t*)MSG_Tx_1,strlen(MSG_Tx_1));
+
+			interpretar_velocidad(received_message_uart);
+			memset(received_message_uart, 0, sizeof(received_message_uart));
+
 		}
+		HAL_UART_Receive_IT(&huart1,&received_caracter_uart, 1);
+
+
+//		sprintf(MSG_TRx_1,"%u\r\n",counter_caracter);
+//			HAL_UART_Transmit_DMA(&huart3, (uint8_t*)MSG_Tx_1,sizeof(MSG_Tx_1));
+//		if (flag_uart == 1) {
+//			flag_uart = 0;
+//			HAL_UART_Transmit_DMA(&huart3, (uint8_t*)MSG_Rx_1,received_length_uart);
+////			interpretar_velocidad(MSG_Rx_1);
+//			HAL_UART_Receive_IT(&huart1,(uint8_t*)received_caracter_uart, 3);
+//		}
+//		else{
+//			flag_uart = 1;
+//			HAL_UART_Receive_IT(&huart1,(uint8_t*)MSG_Rx_1, received_caracter_uart);
+//		}
 	}
 }
 //void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart){
@@ -1161,28 +1112,6 @@ void printWelcomeMessage(UART_HandleTypeDef *huart) {
 	for (uint8_t i = 0; i < 5; i++) {
 		HAL_UART_Transmit(huart, (uint8_t*)strings[i], strlen(strings[i]),1000);
 	}
-}
-float Convert_Pulse_To_Rpm(int32_t counter, int32_t sample_time){
-	int PPR = 7; // pulso por vuelta de rotor
-	int RR = 100; // relacion rotor y eje del motor
-
-	float value = (((((float)counter/sample_time)*1000)/PPR)*60)/RR;
-	return value;
-}
-
-int pulse_To_Sample_Time(int32_t cnt_2, int32_t cnt_1) {
-	//estimacion de la velocidad motor izquierdo
-	int valor = 0;
-	if (abs(cnt_2 - cnt_1) > 200) {
-		if (cnt_1 > cnt_2) {
-			valor = 1;
-		} else {
-			valor = -1;
-		}
-	} else {
-		valor = 0;
-	}
-	return valor;
 }
 void secuencia(uint32_t time_counter){
 	if (time_counter%40 == 0){
@@ -1217,131 +1146,37 @@ void secuencia(uint32_t time_counter){
 	}
 }
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
-	if (htim->Instance == TIM5){
-
-//		XXXX_1 = datos de motor izquierdo
-//		XXXX_2 = datos de motor derecho
-
-//		time_1 = __HAL_TIM_GET_COUNTER(&htim6);
-		cnt1_2 = __HAL_TIM_GET_COUNTER(&htim1);
-		cnt2_2 = __HAL_TIM_GET_COUNTER(&htim2);
-
-		int32_t diff_1 = 0;
-		int32_t diff_2 = 0;
-		float speed_1 = 0.000;
-		float speed_2 = 0.000;
-
-		counter_time++;
-		secuencia(counter_time);
-//		setP_1 = 45;
-//		setP_2 = 45;
+void interpretar_velocidad(char* data_MSG) {
 
 
+	/*
+	*	devuelvo los 9 caractereres recibidos de DMA incluso el "\0" que se al por la tecla intro
+	* 	cuando se usa un terminal
+	*	mensaje esperado qxxxeyyy
+	*	donde xxx y yyy es un numero de 3 cifras de -99 a 099 , el signo se incluye en el mensaje
+	*/
 
-		//estimacion de la velocidad motor izquierdo
-		int valor_1 = pulse_To_Sample_Time(cnt1_2, cnt1_1);
-		//estimacion de la velocidad motor derecho
-		int valor_2 = pulse_To_Sample_Time(cnt2_2, cnt2_1);
 
+		//	verifico por el  puerto USB de robot el tramo del mensaje recibido.
+	//	sprintf(MSG_Tx,"\r\n%s",MSG_Rx);
+	//	HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
 
-		diff_1 =valor_1*(__HAL_TIM_GET_AUTORELOAD(&htim1)+1) + cnt1_2 - cnt1_1;
-		diff_2 =valor_2*(__HAL_TIM_GET_AUTORELOAD(&htim2)+1) + cnt2_2 - cnt2_1;
+	if (sscanf(data_MSG, "%c%d%c%d%c%d", &letra_1, &numero_1, &letra_2, &numero_2, &letra_3, &numero_3) == 6){
+		HAL_GPIO_TogglePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin);
+		P_letra_1 = letra_1;
+		P_numero_1 = (float) numero_1;
 
-		// convertir a RPM
-		speed_1 = 100.000*(Convert_Pulse_To_Rpm(diff_1, sample_time)/114.000);
-		speed_2 = 100.000*(Convert_Pulse_To_Rpm(diff_2, sample_time)/114.000);
+		P_letra_2 = letra_2;
+		P_numero_2 = (float) numero_2;
 
-//		// velocidad sin controlador
-//		uk1 = setP_1;
-//		uk2 = -setP_2;
-
-		//error motores
-		ek1 = setP_1-speed_1;
-		ek2 = -setP_2-speed_2;
-
-//		accion de control
-		uk1 =q0*ek1 + q1*ek1_1 + q2*ek1_2 + uk1_1;
-		uk2 =q0*ek2 + q1*ek2_1 + q2*ek2_2 + uk2_1;
-
-		//limitador de accion de control
-		if (uk1>=100.0){
-			uk1=100.0;
+		if ((letra_1 == 'q') && (letra_2 == 'e') && (letra_3 == 's') && ((numero_1 + numero_2) == (numero_3))){
+			setP_1 = P_numero_1;
+			setP_2 = P_numero_2;
 		}
-		if (uk1<=-100.0){
-			uk1=-100.0;
-		}
-
-		if (uk2>=100.0){
-			uk2=100.0;
-		}
-		if (uk2<=-100.0){
-			uk2=-100.0;
-		}
-
-
-		Duty_1 = abs(uk1*(999/100.0));
-		if(uk1>=0){
-			//dir motor de izquierda
-			HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_RESET);
-			//dir motor izquierdo
-			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,Duty_1);
-
-		} else {
-			//dir motor de izquierda
-			HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_SET);
-			//dir motor izquierdo
-			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_1,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty_1);
-
-		}
-
-		Duty_2 = abs(uk2*(999/100.0));
-		if(uk2<=0){
-			//dir motor de derecha
-			HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_RESET);
-			//dir motor derecho
-			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,Duty_2);
-		} else {
-			//dir motor de derecha
-			HAL_GPIO_WritePin(BMOT2_GPIO_Port, BMOT2_Pin, GPIO_PIN_SET);
-			//dir motor derecho
-			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty_2);
-		}
-
-		// mensaje de respuesta a 100 ms
-//		if (counter_time == 10) {
-//			counter_time == 0;
-//		sprintf(MSG_Tx,"\r\nspeed:%.3f,Duty:%d,cnt1:%d,diff:%d,letra:%c", speed_1,(int)Duty/10,(int)cnt1_1,(int)diff,P_letra);
-//		sprintf(MSG_Tx,"\r\nspeed:%.3f,letra:%c,Duty:%d%%", speed_1,P_letra,(int)(Duty+1)/10);
-//		sprintf(MSG_Tx,"\r\nspeed:%.3f,letra:%c,setP:%d,ek1:%.3f,Duty:%d,uk1:%.3f", speed_1,P_letra,(int)setP,(float) ek1,(int) (Duty_1+1)/10,uk1);
-//		sprintf(MSG_Tx,"\r\nspeed_1:%.2f,speed_2:%.2f,setP:%d,uk1:%.2f,uk2:%.2f,letra:%c", speed_1,speed_2,(int)setP,uk1,uk2,P_letra);
-		sprintf(MSG_Tx,"\r\nsetP_1:%d,setP_2:%d,speed_1:%.2f,speed_2:%.2f,time:%d",(int)setP_1,(int)setP_2, speed_1,speed_2,(int)counter_time);
-
-//		time_1 = __HAL_TIM_GET_COUNTER(&htim6);
-		HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
-//		}
-
-		//shit register motor 1
-		uk1_2=uk1_1;
-		uk1_1=uk1;
-
-		ek1_2=ek1_1;
-		ek1_1=ek1;
-
-		//shit register motor 2
-		uk2_2=uk2_1;
-		uk2_1=uk2;
-
-		ek2_2=ek2_1;
-		ek2_1=ek2;
-
-		cnt1_1 = __HAL_TIM_GET_COUNTER(&htim1);
-		cnt2_1 = __HAL_TIM_GET_COUNTER(&htim2);
-//		time_2 = __HAL_TIM_GET_COUNTER(&htim6);
-//		sprintf(MSG_Tx,"\r\ntime_1:%d,time_2:%d", time_1,time_2);
-//		HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
 	}
 }
+
+
 /* USER CODE END 4 */
 
 /**

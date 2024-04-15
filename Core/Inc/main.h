@@ -31,7 +31,14 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "string.h"
+#include "stdio.h"
+#include <ctype.h>
 
+// header definidor por el ususario
+#include "control_motor.h"
+#include "modulo_wifi.h"
+#include "i2c_slave.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -41,7 +48,25 @@ extern "C" {
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
+extern char MSG_Rx[30];
+extern char MSG_Tx[150];
 
+extern float setP_1;
+extern float setP_2;
+
+
+extern TIM_HandleTypeDef htim1;
+extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim5;
+
+extern UART_HandleTypeDef huart3;
+extern UART_HandleTypeDef huart1;
+
+extern I2C_HandleTypeDef hi2c2;
+
+
+extern uint8_t received_length_i2c;
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -116,9 +141,8 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 void printWelcomeMessage(UART_HandleTypeDef *huart);
-float Convert_Pulse_To_Rpm(int32_t counter, int32_t sample_time);
-int Pulse_to_seconds(int32_t cnt2_1,int32_t cnt2_2);
 void secuencia(uint32_t time_counter);
+void interpretar_velocidad(char* data_MSG);
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
