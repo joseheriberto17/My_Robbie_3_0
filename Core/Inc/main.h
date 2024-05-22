@@ -37,7 +37,6 @@ extern "C" {
 
 // header definidor por el ususario
 #include "control_motor.h"
-#include "modulo_wifi.h"
 #include "i2c_slave.h"
 /* USER CODE END Includes */
 
