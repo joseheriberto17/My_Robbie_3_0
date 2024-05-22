@@ -3,6 +3,17 @@
  *
  *  Created on: Oct 27, 2023
  *      Author: theheri24
+ *
+ *		-Este archivo es una extension del archivo main.
+ *
+ *		-Posee un algoritmo que actua como un controlador PID, que permite controlar
+ *		 la velocidad de las  2 ruedas de robot Robbie3.
+ *
+ *		-Registra y organiza las variable que nesecita el robot publicar para la
+ *		 aplicacion propuesta, esto lo hace para los 2 perifricos UART que estan conectado
+ *		 en el robot.
+ *
+ *		-El MCU STM32 usa el Timer5 para ejecutar el codigo cada 100 ms.
  */
 #include <control_motor.h>
 
@@ -103,17 +114,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 		float speed_2 = 0.000;
 
 		counter_time++;
+
+//		lineas para la prueba movilidad en el robot
 //		secuencia(counter_time);
 //		setP_1 = 45;
 //		setP_2 = 45;
 
 		diff_1 = pulse_To_Sample_Time(&htim1,cnt1_2, cnt1_1);
 		diff_2 = pulse_To_Sample_Time(&htim2,cnt2_2, cnt2_1);
-
-//		//estimacion de la velocidad motor izquierdo
-//		diff_1 =valor_1*(__HAL_TIM_GET_AUTORELOAD(&htim1)+1) + cnt1_2 - cnt1_1;
-//		//estimacion de la velocidad motor derecho
-//		diff_2 =valor_2*(__HAL_TIM_GET_AUTORELOAD(&htim2)+1) + cnt2_2 - cnt2_1;
 
 		// convertir a porcentaje de RPM
 		speed_1 = 100.000*(Convert_Pulse_To_Rpm(diff_1, sample_time)/114.000);
@@ -186,43 +194,33 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 			__HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_2,__HAL_TIM_GET_AUTORELOAD(&htim3)+1-Duty_2);
 		}
 
-		// mensaje de respuesta a 100 ms
-
 		/*
-		 * variable que se puede imprimir
-		 * 	-Duty (int)
-		 * 	-cnt1 (int)
-		 * 	-speed_1 (float)
-		 * 	-diff (int)
-		 * 	-P_letra (caracter)
+		 * publicacion del mensaje que registra los datos internos del robot.
+		 * 		setP_x = velocidad esperada en % de la velocidad del robot.
+		 * 		speed_x = velocidad estimado en % de la velocidad del robot
+		 * 		sensor_x = valor distancia  que registra un sensor.
+		 * 		counter_time = tiempo en segundos que transcurre en la ejecucion del firmware.
+		 *
+		 * 		XXXX_1 = datos de motor izquierdo
+		 * 		XXXX_2 = datos de motor derecho
 		 */
 		sprintf(MSG_Tx,"A1: %03d,A2: %03d,"
 					   "B1: %03d,B2: %03d,"
 					   "C1: %03u,C2: %03u,C3: %03u,C4: %03u,C5: %03u,C6: %03u,"
 					   "D1: %05u s\r\n",
 					   (int)setP_1,(int)setP_2,
-					   (int)speed_1,(int)speed_2,
+					   (int)speed_1,(int)-speed_2,
 					   sensor_1,sensor_2,sensor_3,sensor_4,sensor_5,sensor_6,
 					   (int)counter_time/10);
 
-//		sprintf(MSG_Tx,"size: %d datos: %s \r\n",received_length,data_to_send);
-//		memset(data_to_send, 0, sizeof(data_to_send));
+		// mensaje de respuesta se publica cada 100 ms al UART que se conecta al CH340 para la comunicacion por cable.
+		HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
 
-//		time_1 = __HAL_TIM_GET_COUNTER(&htim6);
-//		HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
-
-
-
-//		sprintf(MSG_Tx,"setP_1:%d,setP_2:%d,speed_1:%.2f,speed_2:%.2f,time:%.2f ms\n",(int)setP_1,(int)setP_2, speed_1,speed_2,(float)counter_time/10.0);
-
-		//me aseguro que termine ante de seguir con los datos
+		// mensaje de respuesta se publica  cada 100 ms al UART que se conecta al ESP-12F.
 		while ((HAL_UART_GetState(&huart1) == HAL_UART_STATE_BUSY_TX) ||
 						(HAL_UART_GetState(&huart1) == HAL_UART_STATE_BUSY_TX_RX));
 		HAL_UART_Transmit_IT(&huart1, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
 
-
-
-//		}
 
 		//shit register motor 1
 		uk1_2=uk1_1;

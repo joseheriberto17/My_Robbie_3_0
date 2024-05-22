@@ -1056,6 +1056,12 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+/*
+ * 	Esta funcion gestiona la recepcion de datos recibido por el periferico UART
+ * 	USART3 esta conectado al CH340 para la comunicacion por cable.
+ * 	USART1 esta conectado al ESP12F.
+ */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 
 
@@ -1081,38 +1087,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 
 		}
 		HAL_UART_Receive_IT(&huart1,&received_caracter_uart, 1);
-
-
-//		sprintf(MSG_TRx_1,"%u\r\n",counter_caracter);
-//			HAL_UART_Transmit_DMA(&huart3, (uint8_t*)MSG_Tx_1,sizeof(MSG_Tx_1));
-//		if (flag_uart == 1) {
-//			flag_uart = 0;
-//			HAL_UART_Transmit_DMA(&huart3, (uint8_t*)MSG_Rx_1,received_length_uart);
-////			interpretar_velocidad(MSG_Rx_1);
-//			HAL_UART_Receive_IT(&huart1,(uint8_t*)received_caracter_uart, 3);
-//		}
-//		else{
-//			flag_uart = 1;
-//			HAL_UART_Receive_IT(&huart1,(uint8_t*)MSG_Rx_1, received_caracter_uart);
-//		}
 	}
 }
-//void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart){
-//	time_2 = __HAL_TIM_GET_COUNTER(&htim6);
-//	sprintf(MSG_Tx,"\r\ntime_1:%d,time_2:%d", time_1,time_2);
-//	HAL_UART_Transmit(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx),1000);
-//}
-void printWelcomeMessage(UART_HandleTypeDef *huart) {
-	char *strings[] = {"\033[0;0H",
-			"\033[2J",
-			"Bienvenidos al stm32:\r\n",
-			"1) Valor del PWM:",
-			PROMT};
-
-	for (uint8_t i = 0; i < 5; i++) {
-		HAL_UART_Transmit(huart, (uint8_t*)strings[i], strlen(strings[i]),1000);
-	}
-}
+/*
+ * codigo de prueba, activa una secuencia de velocidades en un tiempo
+ * determinado para evaluar el controlador de velocidad PID.
+ */
 void secuencia(uint32_t time_counter){
 	if (time_counter%40 == 0){
 		if (step == 0) {
@@ -1145,22 +1125,12 @@ void secuencia(uint32_t time_counter){
 		}
 	}
 }
-
+/*
+ * 	Esta funcion tiene la finalidad de interpretar la cadena de caracteres que recibe por
+ * 	cualquier UART conectado.Esta valida y extrae el valor que acompaña cada termino para
+ * 	el control de velocidad de las ruedas.
+ */
 void interpretar_velocidad(char* data_MSG) {
-
-
-	/*
-	*	devuelvo los 9 caractereres recibidos de DMA incluso el "\0" que se al por la tecla intro
-	* 	cuando se usa un terminal
-	*	mensaje esperado qxxxeyyy
-	*	donde xxx y yyy es un numero de 3 cifras de -99 a 099 , el signo se incluye en el mensaje
-	*/
-
-
-		//	verifico por el  puerto USB de robot el tramo del mensaje recibido.
-	//	sprintf(MSG_Tx,"\r\n%s",MSG_Rx);
-	//	HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));
-
 	if (sscanf(data_MSG, "%c%d%c%d%c%d", &letra_1, &numero_1, &letra_2, &numero_2, &letra_3, &numero_3) == 6){
 		HAL_GPIO_TogglePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin);
 		P_letra_1 = letra_1;
