@@ -55,7 +55,7 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
 	} else {
 		flag_i2c =1;
 
-		HAL_GPIO_TogglePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin);
+//		HAL_GPIO_TogglePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin);
 //		registra la cantidad de caracteres por el tamaño definido en received_length_i2c
 		HAL_I2C_Slave_Receive_DMA(&hi2c2,(uint8_t*)data_to_send,received_length_i2c);
 	}

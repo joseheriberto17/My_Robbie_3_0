@@ -48,10 +48,14 @@ extern "C" {
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
 extern char MSG_Rx[30];
-extern char MSG_Tx[150];
+extern char MSG_Tx[200];
 
 extern float setP_1;
 extern float setP_2;
+
+extern char received_message_uart[30];
+extern uint8_t received_caracter_uart;
+extern char MSG_Tx_1[32];
 
 
 extern TIM_HandleTypeDef htim1;

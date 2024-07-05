@@ -207,11 +207,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 		sprintf(MSG_Tx,"A1: %03d,A2: %03d,"
 					   "B1: %03d,B2: %03d,"
 					   "C1: %03u,C2: %03u,C3: %03u,C4: %03u,C5: %03u,C6: %03u,"
-					   "D1: %05u s\r\n",
+					   "D1: %05u s,"
+					   "E1: %s, E2: %u\r\n",
 					   (int)setP_1,(int)setP_2,
 					   (int)speed_1,(int)-speed_2,
 					   sensor_1,sensor_2,sensor_3,sensor_4,sensor_5,sensor_6,
-					   (int)counter_time/10);
+					   (int)counter_time/10,
+					   MSG_Tx_1,strlen(MSG_Tx_1));
 
 		// mensaje de respuesta se publica cada 100 ms al UART que se conecta al CH340 para la comunicacion por cable.
 		HAL_UART_Transmit_DMA(&huart3, (uint8_t*)&MSG_Tx,strlen(MSG_Tx));

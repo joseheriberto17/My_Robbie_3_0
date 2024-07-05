@@ -66,16 +66,17 @@ DMA_HandleTypeDef hdma_usart3_tx;
 
 // buffer para la obtencion de datos por UART
 char MSG_Rx[30];
-char MSG_Tx[150];
+char MSG_Tx[200];
 
 char MSG_Rx_1[30];
-char MSG_Tx_1[80];
+char MSG_Tx_1[32];
 
-char received_message_uart[14];
+char received_message_uart[30];
 
 uint8_t received_caracter_uart;
 uint8_t flag_uart = 0;
 uint8_t counter_caracter = 0;
+
 
 // variable principal para la velocidad objetivo de las ruedas
 float setP_1 = 0.000;
@@ -209,6 +210,8 @@ int main(void)
 
   // comunicacion por i2c
   HAL_I2C_Slave_Receive_DMA(&hi2c2,&received_length_i2c, 1);
+
+  memset(MSG_Tx_1, 0, sizeof(MSG_Tx_1));
   while (1)
   {
 
@@ -1004,8 +1007,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(AMOT2_GPIO_Port, AMOT2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PC13 SD_CS_Pin STATUS_LED_RED_Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_13|SD_CS_Pin|STATUS_LED_RED_Pin;
+  /*Configure GPIO pins : PC13 SD_CS_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_13|SD_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1030,6 +1033,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : STATUS_LED_RED_Pin */
+  GPIO_InitStruct.Pin = STATUS_LED_RED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(STATUS_LED_RED_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : ACC_INT1_Pin */
   GPIO_InitStruct.Pin = ACC_INT1_Pin;
@@ -1070,7 +1080,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 	}
 	if (huart->Instance == USART1){
 
-
+		HAL_GPIO_TogglePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin);
 		received_message_uart[counter_caracter]= received_caracter_uart;
 		counter_caracter += 1;
 
@@ -1079,13 +1089,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 		if (resultado != NULL){
 			counter_caracter = 0;
 //			 muestra los datos que recibe del esp 12f
-			sprintf(MSG_Tx_1,"%s",(uint8_t*)received_message_uart);
-			HAL_UART_Transmit_DMA(&huart3, (uint8_t*)MSG_Tx_1,strlen(MSG_Tx_1));
+			sscanf(received_message_uart, "%s\n", MSG_Tx_1);
+//			sprintf(MSG_Tx_1,"%s",(uint8_t*)received_message_uart);
+			HAL_UART_Transmit_DMA(&huart3, (uint8_t*)received_message_uart,strlen(received_message_uart));
+
 
 			interpretar_velocidad(received_message_uart);
 			memset(received_message_uart, 0, sizeof(received_message_uart));
 
 		}
+
 		HAL_UART_Receive_IT(&huart1,&received_caracter_uart, 1);
 	}
 }
@@ -1131,8 +1144,8 @@ void secuencia(uint32_t time_counter){
  * 	el control de velocidad de las ruedas.
  */
 void interpretar_velocidad(char* data_MSG) {
-	if (sscanf(data_MSG, "%c%d%c%d%c%d", &letra_1, &numero_1, &letra_2, &numero_2, &letra_3, &numero_3) == 6){
-		HAL_GPIO_TogglePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin);
+	if (sscanf(data_MSG, "%c%d%c%d%c%d", &letra_1, &numero_1, &letra_2, &numero_2, &letra_3, &numero_3) == 6 && strlen(data_MSG)==15){
+//		HAL_GPIO_TogglePin(STATUS_LED_RED_GPIO_Port, STATUS_LED_RED_Pin);
 		P_letra_1 = letra_1;
 		P_numero_1 = (float) numero_1;
 
